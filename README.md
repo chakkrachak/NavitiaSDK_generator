@@ -1,0 +1,1 @@
+# NavitiaSDK_generator

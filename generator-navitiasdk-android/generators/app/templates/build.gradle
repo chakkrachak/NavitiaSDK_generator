@@ -1,0 +1,127 @@
+group 'org.kisio.sdk'
+version '0.1.0'
+
+apply plugin: 'java'
+apply plugin: 'com.jfrog.bintray'
+apply plugin: 'maven'
+apply plugin: 'maven-publish'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile 'com.google.code.gson:gson:2.8.0'
+    compile 'commons-lang:commons-lang:2.6'
+    compile 'com.squareup.okhttp3:okhttp:3.6.0'
+    compile 'com.googlecode.json-simple:json-simple:1.1.1'
+}
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
+    }
+}
+
+// custom tasks for creating source/javadoc jars
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+// add javadoc/source jar tasks as artifacts
+artifacts {
+    archives sourcesJar, javadocJar
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            if (plugins.hasPlugin('war')) {
+                from components.web
+            } else {
+                from components.java
+            }
+
+            artifact sourcesJar
+            artifact javadocJar
+        }
+    }
+}
+
+// "gradle build bintrayUpload --info" to build and send to jcenter
+bintray {
+    user = System.getenv('BINTRAY_USER')
+    key = System.getenv('BINTRAY_KEY')
+    configurations = ['archives']
+    publications = ['mavenJava']
+    dryRun = false //Whether to run this as dry-run, without deploying
+    publish = true //If version should be auto published after an upload
+    pkg {
+        repo = 'NavitiaSDK'
+        name = 'navitia-sdk'
+        licenses = ['GPL-3.0']
+        vcsUrl = 'https://github.com/CanalTP/NavitiaSDK_android.git'
+        version {
+            name = '0.1.0'
+            desc = 'NavitiaSDK android 0.1.0'
+            released  = new Date()
+            vcsTag = '0.1.0'
+            attributes = ['gradle-plugin': 'com.use.less:com.use.less.gradle:gradle-useless-plugin']
+            gpg {
+                sign = true //Determines whether to GPG sign the files. The default is false
+            }
+        }
+    }
+}
+
+// "gradle writeNewPom" to generate a new pom.xml
+// "mvn clean install" to sign jars
+// find explanation here : http://blog.sonatype.com/2010/01/how-to-generate-pgp-signatures-with-maven/
+task writeNewPom << {
+    pom {
+        project {
+            groupId 'org.kisio.sdk'
+            artifactId 'navitia-sdk'
+            version '0.1.0'
+
+            name 'NavitiaSDK android'
+            description 'Navitia client for Android'
+            url 'https://github.com/CanalTP/NavitiaSDK_android'
+
+            inceptionYear '2017'
+            licenses {
+                license {
+                    name 'GNU General Public License, Version 3'
+                    url 'http://www.gnu.org/licenses/gpl-3.0.htm'
+                    distribution 'manual'
+                }
+            }
+        }
+    }.withXml { asNode()
+        .appendNode('build')
+        .appendNode('plugins')
+        .appendNode('plugin')
+            .appendNode('groupId', 'org.apache.maven.plugins')
+            .parent().appendNode('artifactId', 'maven-gpg-plugin')
+            .parent().appendNode('executions')
+            .appendNode('execution')
+                .appendNode('id', 'sign-artifacts')
+                .parent().appendNode('phase', 'verify')
+                .parent().appendNode('goals')
+                    .appendNode('goal', 'sign')
+    }.writeTo("pom.xml").writeTo("$buildDir/pom.xml").writeTo("$buildDir/poms/pom-default.xml")
+}
+
